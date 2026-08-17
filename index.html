@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>薪資王 PAYROLL KING - 旗艦線上版</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- SheetJS (Excel 匯入/匯出) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <!-- html2canvas (下載明細圖) -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  
+  <!-- Chart.js (圖表視覺化) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+    }
+    
+    /* 隱藏滾動條但保持功能 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* 圖表容器尺寸控制 */
+    .chart-container {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      height: 260px;
+      max-height: 320px;
+    }
+
+    /* 列印專用 CSS 控制 */
+    #printContainer {
+      display: none;
+    }
+    @media print {
+      body > *:not(#printContainer) {
+        display: none !important;
+      }
+      #printContainer {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background-color: white;
+      }
+      .page-break {
+        page-break-after: always;
+        break-after: page;
+      }
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col justify-between">
+
+  <div>
+    <!-- 頂部功能列 -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3">
+          <div class="bg-amber-500 text-slate-950 p-2 rounded-xl font-black text-xl flex items-center justify-center">
+            👑
+          </div>
+          <div>
+            <h1 class="text-lg font-black tracking-wider flex items-center gap-2">
+              薪資王 PAYROLL KING <span class="bg-amber-400 text-slate-950 text-[10px] font-extrabold px-2 py-0.5 rounded-full">2026 旗艦版</span>
+            </h1>
+            <p class="text-xs text-slate-400">本機離線運作 · 經常性薪資防呆 · 全廠 Excel 獨立分頁匯出</p>
+          </div>
+        </div>
+
+        <div class="flex items-center flex-wrap gap-2">
+          <!-- 清除暫存 -->
+          <button onclick="clearSystemData()" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow transition active:scale-95" title="清除瀏覽器中的所有暫存資料並恢復預設">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 清空資料
+          </button>
+
+          <!-- 投保級距知識庫 -->
+          <button onclick="openBracketModal()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow transition active:scale-95" title="查看 2026 完整勞健保對照表與法規解析">
+            <i data-lucide="book-open-check" class="w-3.5 h-3.5"></i> 級距與法規解析
+          </button>
+
+          <!-- 匯入 Excel -->
+          <label class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95">
+            <i data-lucide="folder-up" class="w-3.5 h-3.5 text-emerald-200"></i> 匯入 Excel
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="importMasterExcel(event)" class="hidden">
+          </label>
+
+          <!-- 匯出 Excel -->
+          <button onclick="exportMasterExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow transition active:scale-95">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> 匯出 Excel
+          </button>
+
+          <!-- 年度結算 -->
+          <button onclick="openAnnualModal()" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow transition active:scale-95">
+            <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> 結算圖表
+          </button>
+
+          <!-- 下載明細圖 -->
+          <button onclick="downloadSlipJpeg()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow transition active:scale-95">
+            <i data-lucide="image" class="w-3.5 h-3.5"></i> 下載明細圖
+          </button>
+
+          <!-- 批次列印 -->
+          <button onclick="printAllSlips()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition active:scale-95">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> 列印
+          </button>
+
+          <!-- 備份選單 -->
+          <div class="flex items-center gap-1 border-l border-slate-700 pl-2">
+            <button onclick="exportFullJsonBackup()" title="匯出 JSON 完全備份" class="text-slate-400 hover:text-sky-300 p-1.5 text-xs transition">
+              <i data-lucide="database" class="w-4 h-4"></i>
+            </button>
+            <label title="匯入 JSON 備份" class="text-slate-400 hover:text-emerald-300 p-1.5 text-xs transition cursor-pointer">
+              <i data-lucide="upload" class="w-4 h-4"></i>
+              <input type="file" id="jsonFileInput" accept=".json" onchange="importJsonBackup(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主要內容區塊 -->
+    <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- 左側：月份統整與員工發薪表單 -->
+      <div class="lg:col-span-5 space-y-4">
+        
+        <!-- 月份與員工分頁選擇 -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">計薪年月：</span>
+              <input type="month" id="payrollMonth" onchange="switchMonth()" class="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+              <i data-lucide="save" class="w-3.5 h-3.5 text-emerald-500"></i> 本地自動暫存
+            </div>
+          </div>
+
+          <!-- 員工頁籤 -->
+          <div class="pt-2 border-t border-slate-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-600">本月員工名冊 (切換員工分頁)</span>
+              <div class="flex gap-1.5">
+                <button onclick="addNewEmp()" class="text-xs bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> 新增員工
+                </button>
+                <button onclick="deleteCurrentEmp()" class="text-xs text-slate-400 hover:text-rose-600 p-1 transition" title="刪除當前同仁本月紀錄">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+            <div id="empTabs" class="flex gap-2 overflow-x-auto pb-1.5 no-scrollbar"></div>
+          </div>
+        </div>
+
+        <!-- 快速輸入表單 -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 text-xs max-h-[calc(100vh-280px)] overflow-y-auto">
+          
+          <!-- 基本資訊 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">員工姓名</label>
+              <input type="text" id="in_name" placeholder="請輸入姓名" oninput="updateEmpName(this.value)" class="w-full px-3 py-1.5 border rounded-xl font-bold text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">職稱 / 部門</label>
+              <input type="text" id="in_dept" placeholder="請輸入職稱" oninput="updateEmpField('dept', this.value)" class="w-full px-3 py-1.5 border rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+
+          <!-- 1. 經常性薪資 (投保級距母數) -->
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+            <div class="flex justify-between items-center border-b pb-1.5">
+              <span class="font-bold text-slate-900">💼 經常性薪資 (投保級距母數)</span>
+              <button onclick="openBracketModal()" class="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1">
+                <i data-lucide="info" class="w-3 h-3"></i> 為什麼全勤要算入？
+              </button>
+            </div>
+            <!-- 恢復為雙欄位，移除伙食津貼 -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-600 mb-1 font-semibold">基本底薪 (NT$)</label>
+                <input type="number" id="in_base" step="500" placeholder="0" oninput="handleWageChange('base', parseFloat(this.value)||0)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-bold text-indigo-700 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-slate-600 mb-1 font-semibold">全勤獎金 (NT$)</label>
+                <input type="number" id="in_attendance" step="100" placeholder="0" oninput="handleWageChange('attendance', parseFloat(this.value)||0)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-bold text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              </div>
+            </div>
+            <div class="text-[10px] text-rose-700 leading-tight bg-rose-50 p-2 rounded border border-rose-100 font-medium">
+              ※ 依法規，底薪與全勤獎金等皆屬「經常性給與」，<strong>必須全額加總</strong>作為勞健保投保與加班費之計算母數，絕不可僅以底薪申報。事假或曠職會自動扣除全勤發放額。
+            </div>
+          </div>
+
+          <!-- 2. 特別休假管理 -->
+          <div class="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200/80 space-y-3">
+            <div class="flex justify-between items-center border-b border-emerald-200/60 pb-1.5">
+              <span class="font-bold text-emerald-950 flex items-center gap-1">
+                <i data-lucide="palmtree" class="w-3.5 h-3.5 text-emerald-600"></i>
+                特別休假 (有薪假 · 工資照給不扣薪)
+              </span>
+              <span class="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-bold">勞基法第38條</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-emerald-950 mb-1 font-semibold">本月休特休 (天)</label>
+                <input type="number" id="in_annualLeaveTaken" min="0" step="0.5" oninput="updateEmpField('annualLeaveTaken', parseFloat(this.value)||0)" class="w-full px-3 py-1.5 border border-emerald-300 rounded-lg text-center font-bold text-emerald-800 bg-white focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0">
+              </div>
+              <div>
+                <label class="block text-emerald-950 mb-1 font-semibold">尚未休畢剩餘 (天)</label>
+                <input type="number" id="in_annualLeaveRemain" min="0" step="0.5" oninput="updateEmpField('annualLeaveRemain', parseFloat(this.value)||0)" class="w-full px-3 py-1.5 border border-emerald-300 rounded-lg text-center font-bold text-slate-700 bg-white focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 自訂動態加發項目 -->
+          <div class="bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/80 space-y-2.5">
+            <div class="flex justify-between items-center border-b border-amber-200/70 pb-1.5">
+              <span class="font-bold text-amber-950 flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-amber-600"></i>
+                自訂加發項目 (其他非經常性獎金)
+              </span>
+              <button onclick="addCustomAllowance()" class="text-[11px] bg-amber-200/80 hover:bg-amber-300 text-amber-900 px-2 py-0.5 rounded font-bold transition">
+                + 新增加給
+              </button>
+            </div>
+            <div id="customAllowancesContainer" class="space-y-2"></div>
+          </div>
+
+          <!-- 4. 加班時數 -->
+          <div class="bg-indigo-50/40 p-3.5 rounded-xl border border-indigo-200/70 space-y-3">
+            <div class="flex justify-between items-center border-b border-indigo-200/60 pb-1.5">
+              <span class="font-bold text-indigo-950">⏱️ 加班時數 (直填總時數)</span>
+              <span class="text-[10px] text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded font-bold">自動以經常性薪資換算倍率</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-indigo-950 mb-1 font-semibold text-[11px]">週六/休息日加班 (h)</label>
+                <input type="number" id="in_restHours" min="0" step="0.5" placeholder="0" oninput="updateEmpField('restHours', parseFloat(this.value)||0)" class="w-full px-2 py-1.5 border border-indigo-300 rounded-lg font-bold text-center text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-slate-700 mb-1 font-semibold text-[11px]">平日加班 (h)</label>
+                <input type="number" id="in_workdayHours" min="0" step="0.5" placeholder="0" oninput="updateEmpField('workdayHours', parseFloat(this.value)||0)" class="w-full px-2 py-1.5 border rounded-lg font-bold text-center text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. 請假差勤 -->
+          <div class="bg-rose-50/50 p-3.5 rounded-xl border border-rose-200 space-y-3">
+            <div class="flex justify-between items-center border-b border-rose-200/80 pb-1.5">
+              <span class="font-bold text-rose-950">📅 請假差勤 (可單填或 天+小時 混填)</span>
+              <div class="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-rose-200">
+                <span class="text-[11px] text-slate-600 font-semibold">1天工時：</span>
+                <input type="number" id="in_hoursPerDay" value="8" min="1" max="24" step="0.5" oninput="updateEmpField('hoursPerDay', parseFloat(this.value)||8)" class="w-8 text-center font-bold text-rose-700 outline-none">
+                <span class="text-[11px] text-slate-500">h</span>
+              </div>
+            </div>
+
+            <!-- 公傷病假 -->
+            <div class="bg-emerald-50/80 p-2.5 rounded-lg border border-emerald-200">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-emerald-950 flex items-center gap-1">
+                  <i data-lucide="ambulance" class="w-3.5 h-3.5 text-emerald-600"></i>
+                  車禍 / 公傷病假 (職災)
+                </span>
+                <span class="text-[10px] text-emerald-800 bg-emerald-200/60 px-1.5 py-0.5 rounded font-bold">全薪照給 · 不扣全勤</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <input type="number" id="in_injuryLeaveDays" min="0" step="0.5" placeholder="0" oninput="updateEmpField('injuryLeaveDays', parseFloat(this.value)||0)" class="w-16 px-2 py-1 border border-emerald-300 rounded font-bold text-center text-emerald-800 bg-white outline-none">
+                <span class="font-semibold text-slate-600">天</span>
+                <div class="text-[11px] text-emerald-800 ml-auto">工資照給 · 全勤無影響</div>
+              </div>
+            </div>
+
+            <!-- 產假/產檢假 -->
+            <div class="bg-pink-50/80 p-2.5 rounded-lg border border-pink-200">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-pink-950 flex items-center gap-1">
+                  <i data-lucide="baby" class="w-3.5 h-3.5 text-pink-600"></i>
+                  產假 / 產檢假 / 陪產檢假
+                </span>
+                <span class="text-[10px] text-pink-800 bg-pink-200/60 px-1.5 py-0.5 rounded font-bold">法定有薪 · 不扣全勤</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <input type="number" id="in_maternityLeaveDays" min="0" step="0.5" placeholder="0" oninput="updateEmpField('maternityLeaveDays', parseFloat(this.value)||0)" class="w-16 px-2 py-1 border border-pink-300 rounded font-bold text-center text-pink-800 bg-white outline-none">
+                <span class="font-semibold text-slate-600">天</span>
+                <div class="text-[11px] text-pink-800 ml-auto">工資照給 · 全勤無影響</div>
+              </div>
+            </div>
+
+            <!-- 遲到/曠職 -->
+            <div class="bg-white/90 p-2.5 rounded-lg border border-rose-200">
+              <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-rose-900 flex items-center gap-1">
+                  <i data-lucide="alarm-clock-off" class="w-3.5 h-3.5 text-rose-600"></i>
+                  遲到 / 曠職
+                </span>
+                <span class="text-[10px] text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-bold">全勤全扣 (0元)</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <input type="number" id="in_tardyHours" min="0" step="0.5" placeholder="0" oninput="updateEmpField('tardyHours', parseFloat(this.value)||0)" class="w-16 px-2 py-1 border border-rose-300 rounded font-bold text-center text-rose-700 outline-none">
+                <span class="font-semibold text-slate-600">小時</span>
+                <div class="text-[11px] text-rose-800 ml-auto" id="lbl_tardyInfo">出勤正常</div>
+              </div>
+            </div>
+
+            <!-- 一般事假 (天 + 小時) -->
+            <div class="bg-white/90 p-2.5 rounded-lg border border-rose-200 space-y-1.5">
+              <div class="flex justify-between items-center">
+                <label class="text-rose-900 font-bold">一般事假 (不給薪 · 全勤全扣)</label>
+                <span class="text-[10px] text-slate-400">可混填</span>
+              </div>
+              <div class="grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-5 flex items-center gap-1">
+                  <input type="number" id="in_personalDays" min="0" step="0.5" placeholder="0" oninput="updateEmpField('personalDays', parseFloat(this.value)||0)" class="w-full px-2 py-1 border border-rose-300 rounded-lg text-center font-bold text-rose-700 bg-white outline-none">
+                  <span class="text-slate-600 font-bold shrink-0">天</span>
+                </div>
+                <div class="col-span-1 text-center font-bold text-slate-400">+</div>
+                <div class="col-span-6 flex items-center gap-1">
+                  <input type="number" id="in_personalHours" min="0" step="0.5" placeholder="0" oninput="updateEmpField('personalHours', parseFloat(this.value)||0)" class="w-full px-2 py-1 border border-rose-300 rounded-lg text-center font-bold text-rose-700 bg-white outline-none">
+                  <span class="text-slate-600 font-bold shrink-0">小時</span>
+                </div>
+              </div>
+              <div class="text-[11px] text-rose-800 bg-rose-50 p-1.5 rounded text-center border border-rose-200" id="lbl_personalInfo">共 0 小時 (扣 0 元)</div>
+            </div>
+
+            <!-- 普通病假 (天 + 小時) -->
+            <div class="bg-white/90 p-2.5 rounded-lg border border-rose-200 space-y-1.5">
+              <div class="flex justify-between items-center">
+                <label class="text-rose-900 font-bold">普通病假 (半薪扣除 · 比例扣全勤)</label>
+                <span class="text-[10px] text-slate-400">可混填</span>
+              </div>
+              <div class="grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-5 flex items-center gap-1">
+                  <input type="number" id="in_sickDays" min="0" step="0.5" placeholder="0" oninput="updateEmpField('sickDays', parseFloat(this.value)||0)" class="w-full px-2 py-1 border border-rose-300 rounded-lg text-center font-bold text-rose-700 bg-white outline-none">
+                  <span class="text-slate-600 font-bold shrink-0">天</span>
+                </div>
+                <div class="col-span-1 text-center font-bold text-slate-400">+</div>
+                <div class="col-span-6 flex items-center gap-1">
+                  <input type="number" id="in_sickHours" min="0" step="0.5" placeholder="0" oninput="updateEmpField('sickHours', parseFloat(this.value)||0)" class="w-full px-2 py-1 border border-rose-300 rounded-lg text-center font-bold text-rose-700 bg-white outline-none">
+                  <span class="text-slate-600 font-bold shrink-0">小時</span>
+                </div>
+              </div>
+              <div class="text-[11px] text-rose-800 bg-rose-50 p-1.5 rounded text-center border border-rose-200" id="lbl_sickInfo">共 0 小時 (半薪扣 0 元)</div>
+            </div>
+
+            <!-- 育嬰留停 -->
+            <div class="p-2 bg-slate-100 rounded-lg flex items-center justify-between">
+              <span class="font-bold text-slate-700">育嬰留職停薪</span>
+              <label class="flex items-center gap-1 text-[11px] text-slate-600 cursor-pointer">
+                <input type="checkbox" id="in_parentalLeave" onchange="updateEmpField('isParentalLeave', this.checked)">
+                <span>本月育嬰留停 (津貼向勞保局領取)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 6. 勞健保扣款 (操作者自填 + 法規就高原則警示) -->
+          <div id="insBoxContainer" class="bg-slate-50 p-3.5 rounded-xl border border-slate-300 space-y-2.5 transition-all">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-1.5">
+              <span class="font-bold text-slate-900 flex items-center gap-1">
+                <i data-lucide="shield-alert" class="w-4 h-4 text-indigo-600"></i>
+                🛡️ 勞健保扣款設定 (操作者自填)
+              </span>
+              <div class="flex items-center gap-2">
+                <button onclick="openBracketModal()" class="text-[10px] text-sky-700 hover:text-sky-900 underline font-bold">
+                  2026 法定級距表
+                </button>
+                <button onclick="applyStatutoryInsurance()" class="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2 py-1 rounded shadow-sm transition active:scale-95 flex items-center gap-1">
+                  <i data-lucide="wand-2" class="w-3 h-3"></i> 一鍵帶入法定對照額
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-slate-700 font-bold text-[11px]">勞保費自付額</label>
+                  <span id="badge_labor_status" class="text-[10px]"></span>
+                </div>
+                <input type="number" id="in_labor" step="1" placeholder="請自填金額" oninput="updateEmpField('labor', parseFloat(this.value)||0)" class="w-full px-2.5 py-1.5 border rounded-lg text-sm font-bold bg-white outline-none transition focus:ring-2 focus:ring-indigo-500">
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-slate-700 font-bold text-[11px]">健保費自付額</label>
+                  <span id="badge_health_status" class="text-[10px]"></span>
+                </div>
+                <input type="number" id="in_health" step="1" placeholder="請自填金額" oninput="updateEmpField('health', parseFloat(this.value)||0)" class="w-full px-2.5 py-1.5 border rounded-lg text-sm font-bold bg-white outline-none transition focus:ring-2 focus:ring-indigo-500">
+              </div>
+            </div>
+
+            <!-- 動態警告與對照資訊區 (包含就高原則與級距區間解析) -->
+            <div id="lbl_insInfo" class="text-[11px] transition-all"></div>
+
+            <div id="customDeductionsContainer" class="space-y-2 pt-1 border-t border-slate-200"></div>
+            <div class="pt-1">
+              <button onclick="addCustomDeduction()" class="text-[11px] text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1">
+                + 新增其他代扣 / 借支
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- 右側：1:1 實體薪資明細表 -->
+      <div class="lg:col-span-7 space-y-4">
+        <div id="payslipCaptureArea" class="bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 shadow-md sticky top-20">
+          
+          <div class="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-end">
+            <div>
+              <div class="text-[10px] font-bold text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                <i data-lucide="crown" class="w-3.5 h-3.5"></i> 薪資王 PAYROLL KING
+              </div>
+              <h2 class="text-2xl font-black tracking-wide text-slate-900 mt-0.5" id="pv_title">同仁薪資明細表</h2>
+            </div>
+            <div class="text-right">
+              <span id="pv_complianceBadge" class="font-bold px-2.5 py-1 rounded text-xs">勞檢合規報表</span>
+              <div class="text-xs text-slate-500 mt-1 font-medium" id="pv_period">計薪年月：2026 年 -- 月</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 text-xs">
+            <div><span class="text-slate-500">姓名 / 部門：</span><strong id="pv_empInfo" class="text-slate-800 block mt-0.5">-</strong></div>
+            <div><span class="text-slate-500">法定加班時薪：</span><strong id="pv_hourlyRate" class="text-slate-800 block mt-0.5">0.00 元</strong></div>
+            <div><span class="text-slate-500">全月加班時數：</span><strong id="pv_totalOtHours" class="text-slate-800 block mt-0.5">0 小時</strong></div>
+            <div><span class="text-slate-500">特休剩餘天數：</span><strong id="pv_annualRemain" class="text-emerald-700 block mt-0.5">0 天</strong></div>
+          </div>
+
+          <table class="w-full border-collapse text-xs sm:text-sm mb-4">
+            <thead>
+              <tr class="bg-slate-100 border-y border-slate-300 text-slate-700 font-bold">
+                <th class="py-2.5 px-3 text-left">薪資項目</th>
+                <th class="py-2.5 px-3 text-right">計算依據 / 出勤與差勤說明</th>
+                <th class="py-2.5 px-3 text-right">金額 (NT$)</th>
+              </tr>
+            </thead>
+            <tbody id="pv_table_body" class="divide-y divide-slate-200"></tbody>
+            <tfoot>
+              <tr class="bg-slate-900 text-white font-bold border-t-2 border-slate-950">
+                <td class="py-3 px-3 text-sm sm:text-base">本期實領工資總額</td>
+                <td class="py-3 px-3 text-right text-slate-300 text-xs font-normal">實領金額 (Net Pay)</td>
+                <td id="pv_netTotal" class="py-3 px-3 text-right text-amber-300 font-black text-base sm:text-lg">NT$ 0</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="flex justify-between items-end text-xs text-slate-400 pt-3 border-t border-slate-200">
+            <div>
+              <p>※ 加班時薪依法以全薪（底薪+全勤及經常性給與）÷ 240 核算。</p>
+              <p class="mt-0.5">※ 特別休假、公傷假、產假依勞動基準法規定保障，工資照給。</p>
+            </div>
+            <div class="border-b border-slate-400 w-32 text-center pb-1 text-slate-400">員工簽章</div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- 投保級距解析與法規說明 Modal -->
+  <div id="bracketExplainModal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="bg-slate-900 text-white p-5 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="bg-sky-500 text-slate-950 p-2 rounded-xl font-bold">
+            <i data-lucide="book-open-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-black tracking-wide">薪資與法定投保級距完整對照表</h2>
+            <p class="text-slate-400 text-xs">依據 2026（115年）勞健保投保薪資分級表・系統動態渲染</p>
+          </div>
+        </div>
+        <button onclick="closeBracketModal()" class="text-slate-400 hover:text-white p-2 transition">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 text-xs text-slate-700 flex-1 bg-slate-50/50">
+        
+        <!-- 核心提問專區 -->
+        <div class="bg-sky-50 p-4 rounded-xl border border-sky-200 space-y-2">
+          <div class="font-bold text-sky-950 text-sm flex items-start gap-1.5">
+            <i data-lucide="help-circle" class="w-4 h-4 text-sky-600 shrink-0 mt-0.5"></i>
+            <span>常見違規迷思：很多老闆以為「只能用底薪投保」？為什麼全勤也要算進去？</span>
+          </div>
+          <p class="text-sky-900 leading-relaxed text-[11px]">
+            這是一個非常常見的誤解！台灣勞健保制度採用<strong>「工資全額認定」</strong>與<strong>「分級區間就高申報」</strong>兩項原則。
+          </p>
+          <div class="bg-white p-3 rounded-lg border border-sky-200 space-y-2 font-medium">
+            <p class="text-slate-700 text-xs">依據《勞動基準法》第2條第3款，工資是指「勞工因工作而獲得之報酬」。只要是每月固定發放、具制度性的<strong>「經常性給與」</strong>，不管公司名目叫什麼（例如：全勤獎金、職務加給等），<strong>全部都要計入工資總額，作為勞健保投保與加班費的計算母數！</strong>不能只用「底薪」來投保或算加班費，否則即構成「高薪低報」違法行為。</p>
+            
+            <div class="bg-slate-50 border border-slate-200 p-2 rounded">
+              <div class="text-slate-900 font-bold border-b pb-1 mb-1 text-xs">正確試算範例：</div>
+              <p class="text-slate-600 text-[11px]">假設員工薪資結構為：底薪 35,000 + 全勤 2,000</p>
+              <ul class="list-disc pl-5 space-y-0.5 text-slate-700 text-[11px]">
+                <li>❌ 錯誤作法：只用底薪 35,000 投保（高薪低報，會被罰鍰）。</li>
+                <li>✅ 正確作法：經常性工資總額為 <strong>37,000 元</strong>。對照級距表，落在「36,301 ～ 38,200 元」區間，必須依法申報為 <strong>38,200 元級距</strong>。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 系統動態渲染的完整表格 -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-slate-900 text-sm">📊 系統核心比對標準 (2026 最新級距表)</h3>
+            <span class="text-[10px] text-slate-500">※ 勞保最高投保上限封頂為 45,800 元</span>
+          </div>
+          <div class="overflow-x-auto overflow-y-auto max-h-[50vh] rounded-xl border border-slate-200 shadow-sm bg-white">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                <tr>
+                  <th class="py-2.5 px-4">實際月薪資區間 (底薪+全勤等經常性給與)</th>
+                  <th class="py-2.5 px-3">法定申報投保級距</th>
+                  <th class="py-2.5 px-3 text-rose-800">勞保自付 (員工負擔)</th>
+                  <th class="py-2.5 px-3 text-indigo-800">健保自付 (員工負擔)</th>
+                </tr>
+              </thead>
+              <tbody id="bracketTableBody" class="divide-y divide-slate-100">
+                <!-- JS 動態寫入區塊 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bg-slate-100 px-6 py-3 border-t border-slate-200 text-right">
+        <button onclick="closeBracketModal()" class="bg-slate-900 text-white px-5 py-2 rounded-lg font-bold hover:bg-slate-800 transition">
+          我瞭解了
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 年度總結算與報表 Modal -->
+  <div id="annualModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="bg-slate-900 text-white p-5 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="bg-purple-500 text-slate-950 p-2 rounded-xl font-bold">
+            <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-black tracking-wide">薪資王 - 全年薪資總結算報表</h2>
+            <p class="text-slate-400 text-xs">自動統整全年度各月份發薪、各員年薪總額、加班費與動態趨勢圖表</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="closeAnnualModal()" class="text-slate-400 hover:text-white p-2 transition">
+            <i data-lucide="x" class="w-6 h-6"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-6 text-xs flex-1">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <span class="text-slate-500 font-medium">系統已建檔計薪月份</span>
+            <div class="text-2xl font-black text-slate-900 mt-1" id="an_statMonthsCount">0 個月</div>
+          </div>
+          <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-200">
+            <span class="text-indigo-900 font-medium">全廠年度應發總額 (Gross)</span>
+            <div class="text-2xl font-black text-indigo-700 mt-1" id="an_statTotalGross">NT$ 0</div>
+          </div>
+          <div class="bg-amber-50/50 p-4 rounded-2xl border border-amber-200">
+            <span class="text-amber-900 font-medium">全廠年度加班費總支出</span>
+            <div class="text-2xl font-black text-amber-600 mt-1" id="an_statTotalOt">NT$ 0</div>
+          </div>
+          <div class="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200">
+            <span class="text-emerald-900 font-medium">全廠年度實發總淨額 (Net)</span>
+            <div class="text-2xl font-black text-emerald-700 mt-1" id="an_statTotalNet">NT$ 0</div>
+          </div>
+        </div>
+
+        <!-- 視覺化 Chart.js 圖表區塊 -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+          <div class="font-bold text-slate-800 flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i data-lucide="trending-up" class="w-4 h-4 text-purple-600"></i> 各月份全廠薪資支出趨勢圖</span>
+            <span class="text-[11px] text-slate-400 font-normal">單位：新臺幣 (NT$)</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="annualTrendChart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div class="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-800 text-sm flex justify-between items-center">
+            <span>各員工全年薪資與出勤累計總額 (所得申報與年終參考)</span>
+            <span class="text-xs text-slate-400 font-normal">依姓名自動彙整全年度月份紀錄</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 font-semibold text-slate-600">
+                  <th class="py-2.5 px-3">姓名 / 職稱</th>
+                  <th class="py-2.5 px-3 text-right">已計薪月數</th>
+                  <th class="py-2.5 px-3 text-right">全年底薪累計</th>
+                  <th class="py-2.5 px-3 text-right">全年全勤實發</th>
+                  <th class="py-2.5 px-3 text-right text-amber-800">全年加班費</th>
+                  <th class="py-2.5 px-3 text-right text-amber-800">全年加給/獎金</th>
+                  <th class="py-2.5 px-3 text-right text-rose-700">全年請假扣款</th>
+                  <th class="py-2.5 px-3 text-right text-rose-700">全年勞健保代扣</th>
+                  <th class="py-2.5 px-3 text-right font-bold text-emerald-700 bg-emerald-50/40">全年實發總淨額 (Net)</th>
+                </tr>
+              </thead>
+              <tbody id="an_employee_summary_body" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 列印專用容器 -->
+  <div id="printContainer"></div>
+
+  <!-- 頁腳 -->
+  <footer class="bg-slate-900 text-slate-500 text-[11px] py-4 text-center border-t border-slate-800 mt-auto">
+    薪資王 PAYROLL KING 旗艦線上版 &copy; 2026 | 遵循最新中華民國勞動基準法與勞健保投保分級規範
+  </footer>
+
+  <!-- Core JavaScript Logic -->
+  <script>
+    // 2026 (115年) 全面勞健保標準對照表 - 系統底層核心陣列
+    // 透過比對最新公告，精準切割部分工時、基本薪資起跳，至最高封頂上限
+    let INS_TABLE_2026 = [
+      // 部分工時區間
+      { min: 0, max: 11100, wage: 11100, labor: 277, health: 458 },
+      { min: 11101, max: 12540, wage: 12540, labor: 313, health: 458 },
+      { min: 12541, max: 13500, wage: 13500, labor: 338, health: 458 },
+      { min: 13501, max: 15840, wage: 15840, labor: 396, health: 458 },
+      { min: 15841, max: 16500, wage: 16500, labor: 413, health: 458 },
+      { min: 16501, max: 17280, wage: 17280, labor: 432, health: 458 },
+      { min: 17281, max: 17880, wage: 17880, labor: 447, health: 458 },
+      { min: 17881, max: 19047, wage: 19047, labor: 476, health: 458 },
+      { min: 19048, max: 20008, wage: 20008, labor: 500, health: 458 },
+      { min: 20009, max: 21009, wage: 21009, labor: 525, health: 458 },
+      { min: 21010, max: 22000, wage: 22000, labor: 550, health: 458 },
+      { min: 22001, max: 23100, wage: 23100, labor: 577, health: 458 },
+      { min: 23101, max: 24000, wage: 24000, labor: 600, health: 458 },
+      { min: 24001, max: 25250, wage: 25250, labor: 632, health: 458 },
+      { min: 25251, max: 26400, wage: 26400, labor: 660, health: 458 },
+      { min: 26401, max: 27600, wage: 27600, labor: 690, health: 458 },
+      { min: 27601, max: 28590, wage: 28590, labor: 715, health: 458 },
+      
+      // 全職基本工資起
+      { min: 28591, max: 29500, wage: 29500, labor: 738, health: 458 },
+      { min: 29501, max: 30300, wage: 30300, labor: 758, health: 470 },
+      { min: 30301, max: 31800, wage: 31800, labor: 795, health: 493 },
+      { min: 31801, max: 33300, wage: 33300, labor: 833, health: 516 },
+      { min: 33301, max: 34800, wage: 34800, labor: 870, health: 540 },
+      { min: 34801, max: 36300, wage: 36300, labor: 908, health: 563 },
+      { min: 36301, max: 38200, wage: 38200, labor: 955, health: 592 },
+      { min: 38201, max: 40100, wage: 40100, labor: 1002, health: 622 },
+      { min: 40101, max: 42000, wage: 42000, labor: 1050, health: 651 },
+      { min: 42001, max: 43900, wage: 43900, labor: 1098, health: 681 },
+      { min: 43901, max: 45800, wage: 45800, labor: 1145, health: 710 }, // 勞保最高封頂上限
+      
+      // 以下為健保繼續遞增之級距 (勞保維持 1145 封頂金額)
+      { min: 45801, max: 48200, wage: 48200, labor: 1145, health: 748 },
+      { min: 48201, max: 50600, wage: 50600, labor: 1145, health: 785 },
+      { min: 50601, max: 53000, wage: 53000, labor: 1145, health: 822 },
+      { min: 53001, max: 55400, wage: 55400, labor: 1145, health: 859 },
+      { min: 55401, max: 57800, wage: 57800, labor: 1145, health: 896 },
+      { min: 57801, max: 60800, wage: 60800, labor: 1145, health: 943 },
+      { min: 60801, max: 63800, wage: 63800, labor: 1145, health: 990 },
+      { min: 63801, max: 66800, wage: 66800, labor: 1145, health: 1036 },
+      { min: 66801, max: 69800, wage: 69800, labor: 1145, health: 1083 },
+      { min: 69801, max: 72800, wage: 72800, labor: 1145, health: 1129 },
+      { min: 72801, max: 76500, wage: 76500, labor: 1145, health: 1187 },
+      { min: 76501, max: 80200, wage: 80200, labor: 1145, health: 1244 },
+      { min: 80201, max: 83900, wage: 83900, labor: 1145, health: 1301 },
+      { min: 83901, max: 87600, wage: 87600, labor: 1145, health: 1359 },
+      { min: 87601, max: 92100, wage: 92100, labor: 1145, health: 1428 },
+      { min: 92101, max: 96600, wage: 96600, labor: 1145, health: 1498 },
+      { min: 96601, max: 101100, wage: 101100, labor: 1145, health: 1568 },
+      { min: 101101, max: 105600, wage: 105600, labor: 1145, health: 1638 },
+      { min: 105601, max: 110100, wage: 110100, labor: 1145, health: 1708 },
+      { min: 110101, max: 115500, wage: 115500, labor: 1145, health: 1791 },
+      { min: 115501, max: 120900, wage: 120900, labor: 1145, health: 1875 },
+      { min: 120901, max: 126300, wage: 126300, labor: 1145, health: 1959 },
+      { min: 126301, max: 131700, wage: 131700, labor: 1145, health: 2043 },
+      { min: 131701, max: 137100, wage: 137100, labor: 1145, health: 2126 },
+      { min: 137101, max: 142500, wage: 142500, labor: 1145, health: 2210 },
+      { min: 142501, max: 147900, wage: 147900, labor: 1145, health: 2294 },
+      { min: 147901, max: 150000, wage: 150000, labor: 1145, health: 2327 },
+      { min: 150001, max: 156400, wage: 156400, labor: 1145, health: 2426 },
+      { min: 156401, max: 162800, wage: 162800, labor: 1145, health: 2525 },
+      { min: 162801, max: 169200, wage: 169200, labor: 1145, health: 2624 },
+      { min: 169201, max: 175600, wage: 175600, labor: 1145, health: 2724 },
+      { min: 175601, max: 182000, wage: 182000, labor: 1145, health: 2823 },
+      { min: 182001, max: 189500, wage: 189500, labor: 1145, health: 2939 },
+      { min: 189501, max: 197000, wage: 197000, labor: 1145, health: 3055 },
+      { min: 197001, max: 204500, wage: 204500, labor: 1145, health: 3172 },
+      { min: 204501, max: 212000, wage: 212000, labor: 1145, health: 3288 },
+      { min: 212001, max: 219500, wage: 219500, labor: 1145, health: 3404 },
+      { min: 219501, max: 228200, wage: 228200, labor: 1145, health: 3539 },
+      { min: 228201, max: 236900, wage: 236900, labor: 1145, health: 3674 },
+      { min: 236901, max: 245600, wage: 245600, labor: 1145, health: 3809 },
+      { min: 245601, max: 254300, wage: 254300, labor: 1145, health: 3944 },
+      { min: 254301, max: 263000, wage: 263000, labor: 1145, health: 4079 },
+      { min: 263001, max: 273000, wage: 273000, labor: 1145, health: 4234 },
+      { min: 273001, max: 283000, wage: 283000, labor: 1145, health: 4389 },
+      { min: 283001, max: 293000, wage: 293000, labor: 1145, health: 4544 },
+      { min: 293001, max: 303000, wage: 303000, labor: 1145, health: 4700 },
+      { min: 303001, max: 9999999, wage: 313000, labor: 1145, health: 4855 } // 最高健保級距
+    ];
+
+    // 取得法定金額工具函式
+    function getStatutoryInsurance(totalWage) {
+      let match = INS_TABLE_2026.find(t => totalWage >= t.min && totalWage <= t.max);
+      if (!match) match = INS_TABLE_2026[INS_TABLE_2026.length - 1];
+      return match;
+    }
+
+    // 動態渲染法規級距表格
+    function renderBracketTable() {
+      const tbody = document.getElementById('bracketTableBody');
+      if (!tbody) return;
+      
+      tbody.innerHTML = INS_TABLE_2026.map((item) => {
+        let wageText = item.min === 0 ? `NT$ 0` : `NT$ ${item.min.toLocaleString()}`;
+        wageText += ` ～ ${item.max > 1000000 ? '以上' : 'NT$ ' + item.max.toLocaleString()}`;
+        
+        // 判斷是否為部份工時
+        let badge = item.wage < 29500 ? `<span class="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">部分工時</span> ` : '';
+        
+        // 判斷勞保是否封頂
+        let laborStr = `NT$ ${item.labor.toLocaleString()}`;
+        if (item.wage >= 45800) {
+          laborStr = `<span class="text-rose-600 font-bold">NT$ 1,145</span> <span class="text-[10px] text-slate-400 font-normal">(上限)</span>`;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-2.5 px-4 font-medium text-slate-600">${wageText}</td>
+            <td class="py-2.5 px-3 font-black text-slate-900">${badge}${item.wage.toLocaleString()} 元</td>
+            <td class="py-2.5 px-3 font-semibold text-rose-800">${laborStr}</td>
+            <td class="py-2.5 px-3 font-bold text-indigo-800">NT$ ${item.health.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 全局狀態
+    let appData = {
+      currentMonth: "2026-08",
+      selectedEmpName: "",
+      months: {}
+    };
+
+    let annualChartInstance = null;
+
+    // 初始化頁面
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      loadLocalStorageData();
+      
+      const monthInput = document.getElementById('payrollMonth');
+      if (!monthInput.value) {
+        monthInput.value = appData.currentMonth;
+      } else {
+        appData.currentMonth = monthInput.value;
+      }
+
+      ensureMonthExists(appData.currentMonth);
+      renderEmpTabs();
+      renderCurrentEmpForm();
+      renderBracketTable(); // 啟動時自動繪製知識庫級距表格
+    });
+
+    // Modal 控制：投保級距知識庫
+    function openBracketModal() {
+      document.getElementById('bracketExplainModal').classList.remove('hidden');
+    }
+    function closeBracketModal() {
+      document.getElementById('bracketExplainModal').classList.add('hidden');
+    }
+
+    // 儲存與讀取 LocalStorage
+    function saveLocalStorageData() {
+      localStorage.setItem('PAYROLL_KING_DATA_2026', JSON.stringify(appData));
+    }
+
+    // 清除本地所有暫存資料 (含防呆確認)
+    function clearSystemData() {
+      if (!confirm("警告：這將會清除您目前所有的暫存薪資與員工紀錄，且無法復原。是否確定要清除？")) {
+        return;
+      }
+      
+      // 清除本地快取
+      localStorage.removeItem('PAYROLL_KING_DATA_2026');
+      
+      // 重置為預設狀態
+      appData = {
+        currentMonth: document.getElementById('payrollMonth').value || "2026-08",
+        selectedEmpName: "",
+        months: {}
+      };
+      
+      ensureMonthExists(appData.currentMonth);
+      saveLocalStorageData(); // 強制覆寫存檔確保重置
+      
+      renderEmpTabs();
+      renderCurrentEmpForm();
+      
+      alert("✅ 暫存資料已完全清除！所有欄位皆已歸零。");
+    }
+
+    function loadLocalStorageData() {
+      const saved = localStorage.getItem('PAYROLL_KING_DATA_2026');
+      if (saved) {
+        try {
+          appData = JSON.parse(saved);
+        } catch(e) {
+          console.error("Local storage error", e);
+        }
+      }
+    }
+
+    function ensureMonthExists(month) {
+      if (!appData.months[month]) {
+        appData.months[month] = [];
+      }
+      if (appData.months[month].length === 0) {
+        appData.months[month].push(createDefaultEmp("新同仁"));
+      }
+      if (!appData.selectedEmpName || !appData.months[month].some(e => e.name === appData.selectedEmpName)) {
+        appData.selectedEmpName = appData.months[month][0].name;
+      }
+    }
+
+    function createDefaultEmp(name = "新同仁") {
+      return {
+        name: name,
+        dept: "",
+        base: 0,
+        attendance: 0,
+        annualLeaveTaken: 0,
+        annualLeaveRemain: 0,
+        customAllowances: [],
+        restHours: 0,
+        workdayHours: 0,
+        hoursPerDay: 8,
+        personalDays: 0,
+        personalHours: 0,
+        sickDays: 0,
+        sickHours: 0,
+        tardyHours: 0,
+        injuryLeaveDays: 0,
+        maternityLeaveDays: 0,
+        isParentalLeave: false,
+        labor: 0,
+        health: 0,
+        customDeductions: []
+      };
+    }
+
+    // 切換月份
+    function switchMonth() {
+      const monthInput = document.getElementById('payrollMonth');
+      appData.currentMonth = monthInput.value;
+      ensureMonthExists(appData.currentMonth);
+      saveLocalStorageData();
+      renderEmpTabs();
+      renderCurrentEmpForm();
+    }
+
+    // 新增員工
+    function addNewEmp() {
+      const monthEmps = appData.months[appData.currentMonth];
+      let newName = `同仁 ${monthEmps.length + 1}`;
+      let counter = 1;
+      while (monthEmps.some(e => e.name === newName)) {
+        counter++;
+        newName = `同仁 ${monthEmps.length + counter}`;
+      }
+      const newEmp = createDefaultEmp(newName);
+      monthEmps.push(newEmp);
+      appData.selectedEmpName = newEmp.name;
+      saveLocalStorageData();
+      renderEmpTabs();
+      renderCurrentEmpForm();
+    }
+
+    // 刪除當前員工
+    function deleteCurrentEmp() {
+      const monthEmps = appData.months[appData.currentMonth];
+      if (monthEmps.length <= 1) {
+        alert("本月至少需留有一名員工紀錄。");
+        return;
+      }
+      if (!confirm(`確定要刪除「${appData.selectedEmpName}」在本月份的薪資紀錄嗎？`)) return;
+
+      const idx = monthEmps.findIndex(e => e.name === appData.selectedEmpName);
+      if (idx !== -1) {
+        monthEmps.splice(idx, 1);
+        appData.selectedEmpName = monthEmps[0].name;
+        saveLocalStorageData();
+        renderEmpTabs();
+        renderCurrentEmpForm();
+      }
+    }
+
+    // 渲染員工頁籤
+    function renderEmpTabs() {
+      const container = document.getElementById('empTabs');
+      const monthEmps = appData.months[appData.currentMonth] || [];
+      
+      container.innerHTML = monthEmps.map(emp => {
+        const isSelected = emp.name === appData.selectedEmpName;
+        const activeClass = isSelected 
+          ? 'bg-slate-900 text-white font-bold border-slate-900 shadow-sm' 
+          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200';
+        
+        return `
+          <button onclick="selectEmp('${emp.name}')" class="px-3.5 py-1.5 rounded-xl border text-xs whitespace-nowrap transition flex items-center gap-1.5 ${activeClass}">
+            <span>${emp.name}</span>
+            <span class="opacity-60 text-[10px]">(${emp.dept || '未設定'})</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectEmp(empName) {
+      appData.selectedEmpName = empName;
+      saveLocalStorageData();
+      renderEmpTabs();
+      renderCurrentEmpForm();
+    }
+
+    function getCurrentEmp() {
+      const monthEmps = appData.months[appData.currentMonth] || [];
+      let emp = monthEmps.find(e => e.name === appData.selectedEmpName);
+      if (!emp && monthEmps.length > 0) {
+        emp = monthEmps[0];
+        appData.selectedEmpName = emp.name;
+      }
+      return emp;
+    }
+
+    // 渲染表單與明細圖
+    function renderCurrentEmpForm() {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+
+      document.getElementById('in_name').value = emp.name || '';
+      document.getElementById('in_dept').value = emp.dept || '';
+      document.getElementById('in_base').value = emp.base || 0;
+      document.getElementById('in_attendance').value = emp.attendance || 0;
+      document.getElementById('in_annualLeaveTaken').value = emp.annualLeaveTaken || 0;
+      document.getElementById('in_annualLeaveRemain').value = emp.annualLeaveRemain || 0;
+      
+      document.getElementById('in_restHours').value = emp.restHours || 0;
+      document.getElementById('in_workdayHours').value = emp.workdayHours || 0;
+      document.getElementById('in_hoursPerDay').value = emp.hoursPerDay || 8;
+
+      document.getElementById('in_injuryLeaveDays').value = emp.injuryLeaveDays || 0;
+      document.getElementById('in_maternityLeaveDays').value = emp.maternityLeaveDays || 0;
+      
+      document.getElementById('in_tardyHours').value = emp.tardyHours || 0;
+      document.getElementById('in_personalDays').value = emp.personalDays || 0;
+      document.getElementById('in_personalHours').value = emp.personalHours || 0;
+      document.getElementById('in_sickDays').value = emp.sickDays || 0;
+      document.getElementById('in_sickHours').value = emp.sickHours || 0;
+
+      document.getElementById('in_parentalLeave').checked = !!emp.isParentalLeave;
+
+      // 填入操作者自訂的勞健保金額
+      document.getElementById('in_labor').value = (emp.labor !== undefined && emp.labor !== null) ? emp.labor : '';
+      document.getElementById('in_health').value = (emp.health !== undefined && emp.health !== null) ? emp.health : '';
+
+      renderCustomAllowancesList();
+      renderCustomDeductionsList();
+      
+      updateCalculatedLabelsAndSlip();
+    }
+
+    function updateEmpName(val) {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+
+      const trimmedName = val.trim() || '未命名';
+      emp.name = trimmedName;
+      appData.selectedEmpName = trimmedName;
+
+      saveLocalStorageData();
+      renderEmpTabs();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    function updateEmpField(field, val) {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+
+      emp[field] = val;
+      saveLocalStorageData();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    // 當薪資改變時
+    function handleWageChange(field, val) {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+      emp[field] = val;
+
+      saveLocalStorageData();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    // 操作者點擊「一鍵帶入法定對照額」
+    function applyStatutoryInsurance() {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+
+      // 把底薪、全勤加總作為投保母數
+      const base = parseFloat(emp.base) || 0;
+      const att = parseFloat(emp.attendance) || 0;
+      const totalWage = base + att;
+      
+      const statutory = getStatutoryInsurance(totalWage);
+
+      emp.labor = statutory.labor;
+      emp.health = statutory.health;
+
+      document.getElementById('in_labor').value = emp.labor;
+      document.getElementById('in_health').value = emp.health;
+
+      saveLocalStorageData();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    // 自訂加減項邏輯
+    function renderCustomAllowancesList() {
+      const emp = getCurrentEmp();
+      const container = document.getElementById('customAllowancesContainer');
+      container.innerHTML = (emp.customAllowances || []).map((item, idx) => `
+        <div class="flex items-center gap-2">
+          <input type="text" value="${item.name}" placeholder="加項名稱" onchange="updateCustomAllowance(${idx}, 'name', this.value)" class="flex-1 px-2 py-1 border rounded bg-white outline-none">
+          <input type="number" value="${item.amount}" placeholder="金額" onchange="updateCustomAllowance(${idx}, 'amount', parseFloat(this.value)||0)" class="w-24 px-2 py-1 border rounded font-bold text-amber-900 bg-white outline-none text-right">
+          <button onclick="removeCustomAllowance(${idx})" class="text-slate-400 hover:text-rose-600 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function addCustomAllowance() {
+      const emp = getCurrentEmp();
+      if (!emp.customAllowances) emp.customAllowances = [];
+      emp.customAllowances.push({ name: "獎金/津貼", amount: 1000 });
+      saveLocalStorageData();
+      renderCustomAllowancesList();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    function updateCustomAllowance(idx, key, val) {
+      const emp = getCurrentEmp();
+      if (emp.customAllowances && emp.customAllowances[idx]) {
+        emp.customAllowances[idx][key] = val;
+        saveLocalStorageData();
+        updateCalculatedLabelsAndSlip();
+      }
+    }
+
+    function removeCustomAllowance(idx) {
+      const emp = getCurrentEmp();
+      if (emp.customAllowances) {
+        emp.customAllowances.splice(idx, 1);
+        saveLocalStorageData();
+        renderCustomAllowancesList();
+        updateCalculatedLabelsAndSlip();
+      }
+    }
+
+    function renderCustomDeductionsList() {
+      const emp = getCurrentEmp();
+      const container = document.getElementById('customDeductionsContainer');
+      container.innerHTML = (emp.customDeductions || []).map((item, idx) => `
+        <div class="flex items-center gap-2">
+          <input type="text" value="${item.name}" placeholder="減項/借支名稱" onchange="updateCustomDeduction(${idx}, 'name', this.value)" class="flex-1 px-2 py-1 border rounded bg-white outline-none">
+          <input type="number" value="${item.amount}" placeholder="金額" onchange="updateCustomDeduction(${idx}, 'amount', parseFloat(this.value)||0)" class="w-24 px-2 py-1 border rounded font-bold text-rose-700 bg-white outline-none text-right">
+          <button onclick="removeCustomDeduction(${idx})" class="text-slate-400 hover:text-rose-600 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function addCustomDeduction() {
+      const emp = getCurrentEmp();
+      if (!emp.customDeductions) emp.customDeductions = [];
+      emp.customDeductions.push({ name: "代扣/借支", amount: 500 });
+      saveLocalStorageData();
+      renderCustomDeductionsList();
+      updateCalculatedLabelsAndSlip();
+    }
+
+    function updateCustomDeduction(idx, key, val) {
+      const emp = getCurrentEmp();
+      if (emp.customDeductions && emp.customDeductions[idx]) {
+        emp.customDeductions[idx][key] = val;
+        saveLocalStorageData();
+        updateCalculatedLabelsAndSlip();
+      }
+    }
+
+    function removeCustomDeduction(idx) {
+      const emp = getCurrentEmp();
+      if (emp.customDeductions) {
+        emp.customDeductions.splice(idx, 1);
+        saveLocalStorageData();
+        renderCustomDeductionsList();
+        updateCalculatedLabelsAndSlip();
+      }
+    }
+
+    // 核心薪資計算與 1:1 明細表繪製
+    function updateCalculatedLabelsAndSlip() {
+      const emp = getCurrentEmp();
+      if (!emp) return;
+
+      const hpd = parseFloat(emp.hoursPerDay) || 8;
+      const base = parseFloat(emp.base) || 0;
+      const att = parseFloat(emp.attendance) || 0;
+      
+      // 法定經常性工資總額 (含底薪、全勤)
+      const totalAgreed = base + att;
+
+      // 時薪（法定：全薪經常性給與 / 240）
+      const hourlyRate = totalAgreed / 240;
+
+      // 算出的 2026 法定標準金額 (含級距與區間，用於詳細解析)
+      const statutory = getStatutoryInsurance(totalAgreed);
+      const userLabor = (parseFloat(emp.labor) !== undefined && !isNaN(parseFloat(emp.labor))) ? parseFloat(emp.labor) : 0;
+      const userHealth = (parseFloat(emp.health) !== undefined && !isNaN(parseFloat(emp.health))) ? parseFloat(emp.health) : 0;
+
+      const laborIsMatch = (userLabor === statutory.labor);
+      const healthIsMatch = (userHealth === statutory.health);
+      const isFullyCompliant = laborIsMatch && healthIsMatch;
+
+      // 事假與病假總時數計算
+      const personalTotalHours = (parseFloat(emp.personalDays) || 0) * hpd + (parseFloat(emp.personalHours) || 0);
+      const sickTotalHours = (parseFloat(emp.sickDays) || 0) * hpd + (parseFloat(emp.sickHours) || 0);
+      const tardyHours = parseFloat(emp.tardyHours) || 0;
+
+      // 請假扣款金額 (以此本薪為基礎)
+      const personalDeduct = Math.round(personalTotalHours * (base / 240));
+      const sickDeduct = Math.round(sickTotalHours * (base / 240) * 0.5);
+
+      // 全勤實發計算：事假或曠職(遲到)，全勤直接歸零！
+      let attEarned = att;
+      let attStatusDesc = "全額發給";
+      if (personalTotalHours > 0 || tardyHours > 0) {
+        attEarned = 0;
+        attStatusDesc = "因事假/曠職不發給";
+      } else if (sickTotalHours > 0) {
+        const sickRatio = Math.max(0, (240 - sickTotalHours) / 240);
+        attEarned = Math.round(att * sickRatio);
+        attStatusDesc = `依病假扣減 (${Math.round(sickRatio * 100)}%)`;
+      }
+
+      // 加班費計算
+      const restHours = parseFloat(emp.restHours) || 0;
+      const workdayHours = parseFloat(emp.workdayHours) || 0;
+
+      let restOtFee = 0;
+      if (restHours > 0) {
+        const h1 = Math.min(restHours, 2);
+        const h2 = Math.max(0, restHours - 2);
+        restOtFee = (h1 * hourlyRate * 1.34) + (h2 * hourlyRate * 1.67);
+      }
+
+      let workdayOtFee = 0;
+      if (workdayHours > 0) {
+        const h1 = Math.min(workdayHours, 2);
+        const h2 = Math.max(0, workdayHours - 2);
+        workdayOtFee = (h1 * hourlyRate * 1.34) + (h2 * hourlyRate * 1.67);
+      }
+      const totalOtFee = Math.round(restOtFee + workdayOtFee);
+
+      // 加發與扣款項目
+      const totalAllowances = (emp.customAllowances || []).reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+      const totalOtherDeductions = (emp.customDeductions || []).reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+
+      // 應發與實領
+      const grossPay = base + attEarned + totalOtFee + totalAllowances;
+      const totalDeductions = personalDeduct + sickDeduct + userLabor + userHealth + totalOtherDeductions;
+      const netPay = grossPay - totalDeductions;
+
+      // 更新輔助提示
+      document.getElementById('lbl_personalInfo').innerText = `共 ${personalTotalHours} 小時 (扣本薪 NT$ ${personalDeduct.toLocaleString()})`;
+      document.getElementById('lbl_sickInfo').innerText = `共 ${sickTotalHours} 小時 (半薪扣 NT$ ${sickDeduct.toLocaleString()})`;
+      document.getElementById('lbl_tardyInfo').innerText = tardyHours > 0 ? `曠職/遲到 ${tardyHours} 小時 (全勤歸零)` : '正常出勤';
+
+      // 勞健保欄位標籤與動態警示框渲染
+      const badgeLabor = document.getElementById('badge_labor_status');
+      if (laborIsMatch) {
+        badgeLabor.className = "text-[10px] text-emerald-600 font-bold flex items-center gap-0.5";
+        badgeLabor.innerHTML = `✓ 符合 ($${statutory.labor})`;
+      } else {
+        badgeLabor.className = "text-[10px] text-rose-600 font-bold bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200 flex items-center gap-0.5";
+        badgeLabor.innerHTML = `⚠️ 不符 (法定$${statutory.labor})`;
+      }
+
+      const badgeHealth = document.getElementById('badge_health_status');
+      if (healthIsMatch) {
+        badgeHealth.className = "text-[10px] text-emerald-600 font-bold flex items-center gap-0.5";
+        badgeHealth.innerHTML = `✓ 符合 ($${statutory.health})`;
+      } else {
+        badgeHealth.className = "text-[10px] text-rose-600 font-bold bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200 flex items-center gap-0.5";
+        badgeHealth.innerHTML = `⚠️ 不符 (法定$${statutory.health})`;
+      }
+
+      const insInfoBox = document.getElementById('lbl_insInfo');
+      if (isFullyCompliant) {
+        insInfoBox.className = "p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 leading-relaxed font-medium space-y-1";
+        insInfoBox.innerHTML = `
+          <div class="flex items-center justify-between text-xs font-bold text-emerald-800">
+            <span>✅ 扣款符合 2026 勞健保法定規範</span>
+            <button onclick="openBracketModal()" class="text-[10px] text-sky-700 hover:text-sky-900 underline font-semibold">
+              解析對照表
+            </button>
+          </div>
+          <p class="text-[11px] text-emerald-800">
+            經常性月薪資 NT$ <strong>${totalAgreed.toLocaleString()}</strong>（包含底薪、全勤）落於區間 <strong>$${statutory.min.toLocaleString()} ～ ${statutory.max > 1000000 ? '以上' : '$' + statutory.max.toLocaleString()}</strong>，依法申報為 <strong>NT$ ${statutory.wage.toLocaleString()} 元級距</strong>（勞保自付 $${statutory.labor} / 健保自付 $${statutory.health}）。
+          </p>
+        `;
+      } else {
+        insInfoBox.className = "p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 leading-relaxed font-medium space-y-1.5";
+        insInfoBox.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-rose-800 text-xs flex items-center gap-1">
+              🚨 警告：自填金額與 2026 法定級距不符！
+            </span>
+            <button onclick="applyStatutoryInsurance()" class="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold px-2 py-0.5 rounded shadow-sm transition">
+              修正為法定額
+            </button>
+          </div>
+          <div class="text-[11px] text-rose-800 space-y-1 border-t border-rose-200/80 pt-1.5">
+            <p>工資總額 NT$ <strong>${totalAgreed.toLocaleString()}</strong> 依法須申報為 <strong>NT$ ${statutory.wage.toLocaleString()} 元級距</strong>！</p>
+            <div class="grid grid-cols-2 gap-2 mt-1 font-semibold">
+              <div class="bg-white/80 p-1.5 rounded border ${laborIsMatch ? 'border-emerald-300 text-emerald-800' : 'border-rose-300 text-rose-800'}">
+                勞保：填 NT$ ${userLabor} ${laborIsMatch ? '✓' : `(應為 $${statutory.labor})`}
+              </div>
+              <div class="bg-white/80 p-1.5 rounded border ${healthIsMatch ? 'border-emerald-300 text-emerald-800' : 'border-rose-300 text-rose-800'}">
+                健保：填 NT$ ${userHealth} ${healthIsMatch ? '✓' : `(應為 $${statutory.health})`}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 渲染右側 1:1 明細表
+      document.getElementById('pv_title').innerText = `${emp.name || '同仁'} 薪資明細表`;
+      document.getElementById('pv_period').innerText = `計薪年月：${appData.currentMonth.replace('-', ' 年 ')} 月`;
+      document.getElementById('pv_empInfo').innerText = `${emp.name || '-'} / ${emp.dept || '未填寫'}`;
+      document.getElementById('pv_hourlyRate').innerText = `${hourlyRate.toFixed(2)} 元/h`;
+      document.getElementById('pv_totalOtHours').innerText = `${restHours + workdayHours} 小時`;
+      document.getElementById('pv_annualRemain').innerText = `${emp.annualLeaveRemain || 0} 天`;
+
+      const complianceBadge = document.getElementById('pv_complianceBadge');
+      if (isFullyCompliant) {
+        complianceBadge.className = "bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded text-xs";
+        complianceBadge.innerText = "勞檢合規報表";
+      } else {
+        complianceBadge.className = "bg-rose-100 text-rose-800 font-bold px-2.5 py-1 rounded text-xs animate-pulse";
+        complianceBadge.innerText = "⚠️ 勞健保自訂（與法定不符）";
+      }
+
+      let tableHtml = `
+        <tr>
+          <td class="py-2 px-3 font-bold text-slate-800">基本底薪</td>
+          <td class="py-2 px-3 text-right text-slate-500">經常性給與</td>
+          <td class="py-2 px-3 text-right font-bold text-slate-900">NT$ ${base.toLocaleString()}</td>
+        </tr>
+      `;
+
+      tableHtml += `
+        <tr>
+          <td class="py-2 px-3 font-bold text-slate-800">全勤獎金</td>
+          <td class="py-2 px-3 text-right text-slate-500">原額 NT$ ${att} (${attStatusDesc})</td>
+          <td class="py-2 px-3 text-right font-bold ${attEarned > 0 ? 'text-slate-900' : 'text-slate-400'}">NT$ ${attEarned.toLocaleString()}</td>
+        </tr>
+      `;
+
+      // 特休顯示
+      if (emp.annualLeaveTaken > 0) {
+        tableHtml += `
+          <tr class="bg-emerald-50/40">
+            <td class="py-2 px-3 font-bold text-emerald-900">特別休假</td>
+            <td class="py-2 px-3 text-right text-emerald-700">本月請特休 ${emp.annualLeaveTaken} 天 (工資全額照給)</td>
+            <td class="py-2 px-3 text-right font-bold text-emerald-800"> NT$ 0 (全薪)</td>
+          </tr>
+        `;
+      }
+
+      // 加發項目
+      (emp.customAllowances || []).forEach(item => {
+        tableHtml += `
+          <tr class="bg-amber-50/30">
+            <td class="py-2 px-3 font-bold text-amber-900">${item.name || '加給'}</td>
+            <td class="py-2 px-3 text-right text-amber-700">非經常性或其他獎金</td>
+            <td class="py-2 px-3 text-right font-bold text-amber-900">+ NT$ ${(parseFloat(item.amount)||0).toLocaleString()}</td>
+          </tr>
+        `;
+      });
+
+      // 加班費
+      if (totalOtFee > 0) {
+        tableHtml += `
+          <tr class="bg-indigo-50/40">
+            <td class="py-2 px-3 font-bold text-indigo-950">加班費</td>
+            <td class="py-2 px-3 text-right text-indigo-800">週六 ${restHours}h + 平日 ${workdayHours}h (法定倍率)</td>
+            <td class="py-2 px-3 text-right font-bold text-indigo-900">+ NT$ ${totalOtFee.toLocaleString()}</td>
+          </tr>
+        `;
+      }
+
+      // 扣款項目
+      if (personalDeduct > 0) {
+        tableHtml += `
+          <tr class="bg-rose-50/30">
+            <td class="py-2 px-3 font-bold text-rose-900">事假扣款</td>
+            <td class="py-2 px-3 text-right text-rose-700">缺勤 ${personalTotalHours} 小時 (不給薪)</td>
+            <td class="py-2 px-3 text-right font-bold text-rose-700">- NT$ ${personalDeduct.toLocaleString()}</td>
+          </tr>
+        `;
+      }
+
+      if (sickDeduct > 0) {
+        tableHtml += `
+          <tr class="bg-rose-50/30">
+            <td class="py-2 px-3 font-bold text-rose-900">病假扣款</td>
+            <td class="py-2 px-3 text-right text-rose-700">病假 ${sickTotalHours} 小時 (半薪扣除)</td>
+            <td class="py-2 px-3 text-right font-bold text-rose-700">- NT$ ${sickDeduct.toLocaleString()}</td>
+          </tr>
+        `;
+      }
+
+      // 勞健保代扣 (標註是否符合法定)
+      const laborDesc = laborIsMatch ? `對照 NT$ ${statutory.wage.toLocaleString()} 級距` : `<span class="text-rose-600 font-bold">自訂金額 (法規標準為 NT$ ${statutory.labor})</span>`;
+      const healthDesc = healthIsMatch ? `對照 NT$ ${statutory.wage.toLocaleString()} 級距` : `<span class="text-rose-600 font-bold">自訂金額 (法規標準為 NT$ ${statutory.health})</span>`;
+
+      tableHtml += `
+        <tr>
+          <td class="py-2 px-3 font-bold text-slate-800">勞保費 (自付額)</td>
+          <td class="py-2 px-3 text-right text-slate-500">${laborDesc}</td>
+          <td class="py-2 px-3 text-right font-bold text-rose-700">- NT$ ${userLabor.toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td class="py-2 px-3 font-bold text-slate-800">健保費 (自付額)</td>
+          <td class="py-2 px-3 text-right text-slate-500">${healthDesc}</td>
+          <td class="py-2 px-3 text-right font-bold text-rose-700">- NT$ ${userHealth.toLocaleString()}</td>
+        </tr>
+      `;
+
+      // 其他借支/代扣
+      (emp.customDeductions || []).forEach(item => {
+        tableHtml += `
+          <tr class="bg-slate-50">
+            <td class="py-2 px-3 font-bold text-slate-800">${item.name || '代扣'}</td>
+            <td class="py-2 px-3 text-right text-slate-500">自訂代扣/借支款項</td>
+            <td class="py-2 px-3 text-right font-bold text-rose-700">- NT$ ${(parseFloat(item.amount)||0).toLocaleString()}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('pv_table_body').innerHTML = tableHtml;
+      document.getElementById('pv_netTotal').innerText = `NT$ ${netPay.toLocaleString()}`;
+    }
+
+    // EXCEL 匯出邏輯 (每位員工獨立 WorkSheet 分頁)
+    function exportMasterExcel() {
+      const wb = XLSX.utils.book_new();
+
+      const allMonths = Object.keys(appData.months).sort();
+      const allEmpNames = new Set();
+      const flatMasterList = [];
+
+      allMonths.forEach(m => {
+        (appData.months[m] || []).forEach(emp => {
+          allEmpNames.add(emp.name);
+
+          const hpd = parseFloat(emp.hoursPerDay) || 8;
+          const base = parseFloat(emp.base) || 0;
+          const att = parseFloat(emp.attendance) || 0;
+          const totalAgreed = base + att;
+          const hourlyRate = totalAgreed / 240;
+
+          const pTotalH = (parseFloat(emp.personalDays) || 0) * hpd + (parseFloat(emp.personalHours) || 0);
+          const sTotalH = (parseFloat(emp.sickDays) || 0) * hpd + (parseFloat(emp.sickHours) || 0);
+          const tardyH = parseFloat(emp.tardyHours) || 0;
+
+          const pDeduct = Math.round(pTotalH * (base / 240));
+          const sDeduct = Math.round(sTotalH * (base / 240) * 0.5);
+
+          let attEarned = att;
+          if (pTotalH > 0 || tardyH > 0) {
+            attEarned = 0;
+          } else if (sTotalH > 0) {
+            const ratio = Math.max(0, (240 - sTotalH) / 240);
+            attEarned = Math.round(att * ratio);
+          }
+
+          const rH = parseFloat(emp.restHours) || 0;
+          const wH = parseFloat(emp.workdayHours) || 0;
+          let rFee = 0;
+          if (rH > 0) {
+            rFee = (Math.min(rH, 2) * hourlyRate * 1.34) + (Math.max(0, rH - 2) * hourlyRate * 1.67);
+          }
+          let wFee = 0;
+          if (wH > 0) {
+            wFee = (Math.min(wH, 2) * hourlyRate * 1.34) + (Math.max(0, wH - 2) * hourlyRate * 1.67);
+          }
+          const otFee = Math.round(rFee + wFee);
+
+          const allowTot = (emp.customAllowances || []).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+          const deductTot = (emp.customDeductions || []).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+
+          const userLabor = parseFloat(emp.labor) || 0;
+          const userHealth = parseFloat(emp.health) || 0;
+
+          const gross = base + attEarned + otFee + allowTot;
+          const totalDeductions = pDeduct + sDeduct + userLabor + userHealth + deductTot;
+          const net = gross - totalDeductions;
+
+          flatMasterList.push({
+            month: m,
+            name: emp.name,
+            dept: emp.dept || '未填寫',
+            base: base,
+            attendance: att,
+            attEarned: attEarned,
+            allowTot: allowTot,
+            hourlyRate: Math.round(hourlyRate * 100) / 100,
+            restHours: rH,
+            workdayHours: wH,
+            otFee: otFee,
+            personalTotalHours: pTotalH,
+            personalDeduct: pDeduct,
+            sickTotalHours: sTotalH,
+            sickDeduct: sDeduct,
+            annualLeaveTaken: emp.annualLeaveTaken || 0,
+            annualLeaveRemain: emp.annualLeaveRemain || 0,
+            labor: userLabor,
+            health: userHealth,
+            deductTot: deductTot,
+            gross: gross,
+            net: net,
+            rawEmp: emp
+          });
+        });
+      });
+
+      // 工作表 1：全廠發薪總清冊
+      const masterHeaders = [
+        "計薪年月", "姓名", "部門", "底薪", "約定全勤", "全勤實發", "其他加給合計",
+        "法定時薪", "週六加班(h)", "平日加班(h)", "加班費合計",
+        "事假時數(h)", "事假扣款", "病假時數(h)", "病假扣款",
+        "特休本月休(天)", "特休剩餘(天)", "勞保自付", "健保自付", "其他代扣",
+        "應發總額(Gross)", "實領金額(Net)"
+      ];
+
+      const masterRows = [masterHeaders];
+      flatMasterList.forEach(r => {
+        masterRows.push([
+          r.month, r.name, r.dept, r.base, r.attendance, r.attEarned, r.allowTot,
+          r.hourlyRate, r.restHours, r.workdayHours, r.otFee,
+          r.personalTotalHours, r.personalDeduct, r.sickTotalHours, r.sickDeduct,
+          r.annualLeaveTaken, r.annualLeaveRemain, r.labor, r.health, r.deductTot,
+          r.gross, r.net
+        ]);
+      });
+
+      const wsMaster = XLSX.utils.aoa_to_sheet(masterRows);
+      XLSX.utils.book_append_sheet(wb, wsMaster, "全廠發薪總清冊");
+
+      // 工作表 2..N：每位員工獨立 Sheet
+      const usedSheetNames = new Set(["全廠發薪總清冊", "_SystemBackup"]);
+
+      Array.from(allEmpNames).forEach(empName => {
+        const empRecords = flatMasterList.filter(r => r.name === empName);
+        if (empRecords.length === 0) return;
+
+        const empSheetHeaders = [
+          "計薪年月", "姓名", "部門", "基本底薪", "約定全勤", "全勤實發", "其他加給合計",
+          "加班費", "事假扣款", "病假扣款", "勞保費", "健保費", "其他代扣",
+          "應發總額", "實領金額", "差勤與加減項備註"
+        ];
+
+        const empSheetRows = [
+          [`員工姓名：${empName}`, `部門：${empRecords[0].dept}`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+          empSheetHeaders
+        ];
+
+        empRecords.forEach(r => {
+          const empObj = r.rawEmp;
+          let notes = [];
+          if (empObj.customAllowances && empObj.customAllowances.length > 0) {
+            notes.push("加給:" + empObj.customAllowances.map(a => `${a.name}+$${a.amount}`).join(";"));
+          }
+          if (empObj.customDeductions && empObj.customDeductions.length > 0) {
+            notes.push("扣款:" + empObj.customDeductions.map(d => `${d.name}-$${d.amount}`).join(";"));
+          }
+          if (empObj.personalDays || empObj.personalHours) {
+            notes.push(`事假:${empObj.personalDays||0}天${empObj.personalHours||0}小時`);
+          }
+          if (empObj.sickDays || empObj.sickHours) {
+            notes.push(`病假:${empObj.sickDays||0}天${empObj.sickHours||0}小時`);
+          }
+
+          empSheetRows.push([
+            r.month, r.name, r.dept, r.base, r.attendance, r.attEarned, r.allowTot,
+            r.otFee, r.personalDeduct, r.sickDeduct, r.labor, r.health, r.deductTot,
+            r.gross, r.net, notes.join(" | ")
+          ]);
+        });
+
+        let baseSheetName = empName.replace(/[\\/*?:[\]]/g, '').substring(0, 25) || "同仁";
+        let safeSheetName = baseSheetName;
+        let dupIndex = 1;
+        while (usedSheetNames.has(safeSheetName)) {
+          safeSheetName = `${baseSheetName}_${dupIndex}`;
+          dupIndex++;
+        }
+        usedSheetNames.add(safeSheetName);
+
+        const wsEmp = XLSX.utils.aoa_to_sheet(empSheetRows);
+        XLSX.utils.book_append_sheet(wb, wsEmp, safeSheetName);
+      });
+
+      // 隱藏備份頁
+      const jsonBackupStr = JSON.stringify(appData);
+      const wsBackup = XLSX.utils.aoa_to_sheet([
+        ["PAYROLL_KING_JSON_BACKUP"],
+        [jsonBackupStr]
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsBackup, "_SystemBackup");
+
+      XLSX.writeFile(wb, `薪資王_全廠各員月份薪資彙整表_${appData.currentMonth}.xlsx`);
+    }
+
+    // EXCEL 匯入邏輯
+    function importMasterExcel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+
+          if (workbook.SheetNames.includes('_SystemBackup')) {
+            const backupSheet = workbook.Sheets['_SystemBackup'];
+            const jsonCell = backupSheet['A2'];
+            if (jsonCell && jsonCell.v) {
+              appData = JSON.parse(jsonCell.v);
+              saveLocalStorageData();
+              renderEmpTabs();
+              renderCurrentEmpForm();
+              alert("已從 Excel 系統備份頁完美無損還原所有薪資與請假細節！");
+              return;
+            }
+          }
+
+          const firstSheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+          if (!rows || rows.length < 2) {
+            alert("匯入的 Excel 格式不正確或內容為空。");
+            return;
+          }
+
+          const headers = rows[0].map(h => String(h || '').trim());
+          const getIdx = (key) => headers.findIndex(h => h.includes(key));
+
+          const idxMonth = getIdx("計薪年月");
+          const idxName = getIdx("姓名");
+          const idxDept = getIdx("部門");
+          const idxBase = getIdx("底薪");
+          const idxAtt = getIdx("約定全勤");
+          const idxLabor = getIdx("勞保");
+          const idxHealth = getIdx("健保");
+
+          if (idxName === -1 || idxBase === -1) {
+            alert("找不到必要的欄位 (如：姓名、底薪)，請確認 Excel 格式。");
+            return;
+          }
+
+          let importedCount = 0;
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const name = String(row[idxName] || '').trim();
+            if (!name) continue;
+
+            const month = (idxMonth !== -1 && row[idxMonth]) ? String(row[idxMonth]).trim() : appData.currentMonth;
+            const dept = (idxDept !== -1 && row[idxDept]) ? String(row[idxDept]).trim() : '未填寫';
+            const base = parseFloat(row[idxBase]) || 0;
+            const att = (idxAtt !== -1) ? (parseFloat(row[idxAtt]) || 0) : 1000;
+
+            if (!appData.months[month]) {
+              appData.months[month] = [];
+            }
+
+            let emp = appData.months[month].find(e => e.name === name);
+            if (!emp) {
+              emp = createDefaultEmp(name);
+              appData.months[month].push(emp);
+            }
+
+            emp.name = name;
+            emp.dept = dept;
+            emp.base = base;
+            emp.attendance = att;
+
+            if (idxLabor !== -1 && row[idxLabor] !== undefined) {
+              emp.labor = parseFloat(row[idxLabor]) || 0;
+            }
+            if (idxHealth !== -1 && row[idxHealth] !== undefined) {
+              emp.health = parseFloat(row[idxHealth]) || 0;
+            }
+
+            importedCount++;
+          }
+
+          saveLocalStorageData();
+          renderEmpTabs();
+          renderCurrentEmpForm();
+          alert(`成功匯入 ${importedCount} 筆薪資紀錄！`);
+
+        } catch (err) {
+          console.error("Excel import error:", err);
+          alert("讀取 Excel 失敗： " + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // JSON 備份匯出與匯入
+    function exportFullJsonBackup() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `薪資王_完整系統備份_${appData.currentMonth}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importJsonBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && parsed.months) {
+            appData = parsed;
+            saveLocalStorageData();
+            renderEmpTabs();
+            renderCurrentEmpForm();
+            alert("系統 JSON 備份檔已順利還原！");
+          } else {
+            alert("格式不相符。");
+          }
+        } catch (err) {
+          alert("JSON 解析失敗。");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 下載明細圖 (JPEG)
+    function downloadSlipJpeg() {
+      const target = document.getElementById('payslipCaptureArea');
+      html2canvas(target, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff' 
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${appData.selectedEmpName}_${appData.currentMonth}_薪資明細表.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+      }).catch(err => {
+        console.error("Image generation error:", err);
+        alert("匯出圖片時發生錯誤，請重試。");
+      });
+    }
+
+    // 批次列印當月所有人明細
+    function printAllSlips() {
+      const monthEmps = appData.months[appData.currentMonth] || [];
+      if (monthEmps.length === 0) {
+        alert("本月尚無員工資料可列印。");
+        return;
+      }
+
+      const originalSelected = appData.selectedEmpName;
+      const printContainer = document.getElementById('printContainer');
+      printContainer.innerHTML = '';
+
+      monthEmps.forEach((emp, index) => {
+        appData.selectedEmpName = emp.name;
+        renderCurrentEmpForm();
+
+        const clone = document.getElementById('payslipCaptureArea').cloneNode(true);
+        if (index < monthEmps.length - 1) {
+          clone.classList.add('page-break');
+        }
+        printContainer.appendChild(clone);
+      });
+
+      appData.selectedEmpName = originalSelected;
+      renderCurrentEmpForm();
+
+      window.print();
+    }
+
+    // 年度結算 Modal 與 Chart.js 動態圖表
+    function openAnnualModal() {
+      const modal = document.getElementById('annualModal');
+      modal.classList.remove('hidden');
+
+      const allMonths = Object.keys(appData.months).sort();
+      document.getElementById('an_statMonthsCount').innerText = `${allMonths.length} 個月`;
+
+      let totalGrossAll = 0;
+      let totalOtAll = 0;
+      let totalNetAll = 0;
+
+      const empStats = {};
+      const monthExpenditures = [];
+
+      allMonths.forEach(m => {
+        let currentMonthGrossSum = 0;
+
+        (appData.months[m] || []).forEach(emp => {
+          if (!empStats[emp.name]) {
+            empStats[emp.name] = {
+              name: emp.name,
+              dept: emp.dept || '未填寫',
+              monthsCount: 0,
+              baseSum: 0,
+              attSum: 0,
+              otSum: 0,
+              allowSum: 0,
+              leaveDeductSum: 0,
+              insDeductSum: 0,
+              netSum: 0
+            };
+          }
+
+          const hpd = parseFloat(emp.hoursPerDay) || 8;
+          const base = parseFloat(emp.base) || 0;
+          const att = parseFloat(emp.attendance) || 0;
+          const totalAgreed = base + att;
+          const hourlyRate = totalAgreed / 240;
+
+          const pTotalH = (parseFloat(emp.personalDays) || 0) * hpd + (parseFloat(emp.personalHours) || 0);
+          const sTotalH = (parseFloat(emp.sickDays) || 0) * hpd + (parseFloat(emp.sickHours) || 0);
+          const tardyH = parseFloat(emp.tardyHours) || 0;
+
+          const pDeduct = Math.round(pTotalH * (base / 240));
+          const sDeduct = Math.round(sTotalH * (base / 240) * 0.5);
+
+          let attEarned = att;
+          if (pTotalH > 0 || tardyH > 0) {
+            attEarned = 0;
+          } else if (sTotalH > 0) {
+            const ratio = Math.max(0, (240 - sTotalH) / 240);
+            attEarned = Math.round(att * ratio);
+          }
+
+          const rH = parseFloat(emp.restHours) || 0;
+          const wH = parseFloat(emp.workdayHours) || 0;
+          let rFee = rH > 0 ? ((Math.min(rH, 2) * hourlyRate * 1.34) + (Math.max(0, rH - 2) * hourlyRate * 1.67)) : 0;
+          let wFee = wH > 0 ? ((Math.min(wH, 2) * hourlyRate * 1.34) + (Math.max(0, wH - 2) * hourlyRate * 1.67)) : 0;
+          const otFee = Math.round(rFee + wFee);
+
+          const allowTot = (emp.customAllowances || []).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+          const deductTot = (emp.customDeductions || []).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+
+          const gross = base + attEarned + otFee + allowTot;
+          const insTot = (parseFloat(emp.labor) || 0) + (parseFloat(emp.health) || 0);
+          const net = gross - (pDeduct + sDeduct + insTot + deductTot);
+
+          const st = empStats[emp.name];
+          st.monthsCount++;
+          st.baseSum += base;
+          st.attSum += attEarned;
+          st.otSum += otFee;
+          st.allowSum += allowTot;
+          st.leaveDeductSum += (pDeduct + sDeduct);
+          st.insDeductSum += insTot;
+          st.netSum += net;
+
+          totalGrossAll += gross;
+          totalOtAll += otFee;
+          totalNetAll += net;
+
+          currentMonthGrossSum += gross;
+        });
+
+        monthExpenditures.push(currentMonthGrossSum);
+      });
+
+      document.getElementById('an_statTotalGross').innerText = `NT$ ${totalGrossAll.toLocaleString()}`;
+      document.getElementById('an_statTotalOt').innerText = `NT$ ${totalOtAll.toLocaleString()}`;
+      document.getElementById('an_statTotalNet').innerText = `NT$ ${totalNetAll.toLocaleString()}`;
+
+      // 渲染表格
+      const tbody = document.getElementById('an_employee_summary_body');
+      tbody.innerHTML = Object.values(empStats).map(st => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-3 px-3 font-bold text-slate-800">${st.name} <span class="text-xs text-slate-400 font-normal">(${st.dept})</span></td>
+          <td class="py-3 px-3 text-right font-semibold text-slate-600">${st.monthsCount} 個月</td>
+          <td class="py-3 px-3 text-right font-medium">NT$ ${st.baseSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-medium">NT$ ${st.attSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-bold text-amber-700">NT$ ${st.otSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-medium text-amber-900">NT$ ${st.allowSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-medium text-rose-600">- NT$ ${st.leaveDeductSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-medium text-rose-600">- NT$ ${st.insDeductSum.toLocaleString()}</td>
+          <td class="py-3 px-3 text-right font-black text-emerald-700 bg-emerald-50/30">NT$ ${st.netSum.toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      // 初始化/更新 Chart.js
+      const ctx = document.getElementById('annualTrendChart').getContext('2d');
+      if (annualChartInstance) {
+        annualChartInstance.destroy();
+      }
+
+      annualChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: allMonths,
+          datasets: [{
+            label: '全廠當月薪資總應發 (Gross)',
+            data: monthExpenditures,
+            backgroundColor: 'rgba(99, 102, 241, 0.75)',
+            borderColor: 'rgb(79, 70, 229)',
+            borderWidth: 1.5,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                font: { family: 'Inter, Noto Sans TC', size: 11 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` 應發金額: NT$ ${context.parsed.y.toLocaleString()}`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                font: { family: 'Inter', size: 10 },
+                callback: function(value) {
+                  return '$' + value.toLocaleString();
+                }
+              }
+            },
+            x: {
+              ticks: {
+                font: { family: 'Inter', size: 11 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function closeAnnualModal() {
+      document.getElementById('annualModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
